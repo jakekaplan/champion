@@ -5,7 +5,9 @@ google-auth==2.29.0
 google-cloud-storage==2.16.0
 pendulum==3.0.0
 idna==3.7
+marvin==2.3.3
 modal==0.62.153
+openai==1.27.0
 pydantic==2.7.1
 pydantic-core==2.18.2
 requests==2.31.0
