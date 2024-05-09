@@ -1,5 +1,8 @@
 certifi==2024.2.2
 charset-normalizer==3.3.2
+google-auth==2.29.0
+google-cloud-storage==2.16.0
+pendulum==3.0.0
 idna==3.7
 modal==0.62.153
 requests==2.31.0
