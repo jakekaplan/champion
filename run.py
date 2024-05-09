@@ -91,6 +91,7 @@ def upload_data():
     post_ids = get_post_ids()
     for post_id in post_ids:
         comments = get_comment_sentiments(post_id)
+        print(f"Got {len(comments)} comments for post {post_id}")
         for comment in comments:
             data = comment.model_dump_json()
             file_name = f"{pendulum.now().format('YYYY-MM-DD-HH-mm-ss')}-{comment.comment_id}"
