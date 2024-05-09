@@ -78,26 +78,27 @@ def get_gcs_client() -> storage.Client:
 
 
 @app.function(
-    schedule=modal.Period(minutes=1),
+    schedule=modal.Period(hours=1),
     secrets=[
         modal.Secret.from_name("jake-adam-kevin-creds"),
         modal.Secret.from_name("open-api-secret"),
     ])
 def upload_data():
-    print("Getting top hackernews comments sentiments")
-    comments = get_top_hackernews_comments_sentiments()
-    print("Got comments sentiments")
-
-    print("Uploading data to GCS")
     client = get_gcs_client()
     bucket = client.bucket("jake-adam-kevin")
-    file_name = f"{pendulum.now().format('YYYY-MM-DD-HH-mm-ss')}-{uuid4()}"
-    blob = bucket.blob(file_name)
 
-    data = '\n'.join([comment.model_dump_json() for comment in comments])
-    blob.upload_from_string(data)
+    print("Getting top hackernews comments sentiments")
+    post_ids = get_post_ids()
+    for post_id in post_ids:
+        comments = get_comment_sentiments(post_id)
+        for comment in comments:
+            data = comment.model_dump_json()
+            file_name = f"{pendulum.now().format('YYYY-MM-DD-HH-mm-ss')}-{comment.comment_id}"
+            blob = bucket.blob(file_name)
+            blob.upload_from_string(data)
+            print(f"Uploading {file_name} to GCS")
 
-    print("Uploaded data to GCS")
+    print("All done!")
 
 
 @app.local_entrypoint()
