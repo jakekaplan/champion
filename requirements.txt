@@ -3,6 +3,7 @@ certifi==2024.2.2
 charset-normalizer==3.3.2
 google-auth==2.29.0
 google-cloud-storage==2.16.0
+google-cloud-bigquery==3.22.0
 pendulum==3.0.0
 idna==3.7
 marvin==2.3.3
