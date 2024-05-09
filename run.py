@@ -1,16 +1,15 @@
-import modal
-import os
 import json
-import pendulum
-from uuid import uuid4
-from google.oauth2 import service_account
-from google.cloud import storage
-import requests
 import os
-from typing import List, Optional, Any
-from pydantic import BaseModel, HttpUrl, Field
-import openai
+from typing import Any, List, Optional
+from uuid import uuid4
+
+import modal
+import pendulum
+import requests
+from google.cloud import storage
+from google.oauth2 import service_account
 from marvin import fn
+from pydantic import BaseModel, Field, HttpUrl
 
 BUCKET_NAME = "jake-adam-kevin"
 image = modal.Image.debian_slim(python_version="3.11").pip_install_from_requirements("requirements.txt")
@@ -85,8 +84,11 @@ def get_gcs_client() -> storage.Client:
         modal.Secret.from_name("open-api-secret"),
     ])
 def upload_data():
+    print("Getting top hackernews comments sentiments")
     comments = get_top_hackernews_comments_sentiments()
+    print("Got comments sentiments")
 
+    print("Uploading data to GCS")
     client = get_gcs_client()
     bucket = client.bucket("jake-adam-kevin")
     file_name = f"{pendulum.now().format('YYYY-MM-DD-HH-mm-ss')}-{uuid4()}"
@@ -96,6 +98,7 @@ def upload_data():
     blob.upload_from_string(data)
 
     print("Uploaded data to GCS")
+
 
 @app.local_entrypoint()
 def main():
