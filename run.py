@@ -11,9 +11,22 @@ from google.oauth2 import service_account
 from marvin import fn
 from pydantic import BaseModel, Field, HttpUrl
 
+_gcs_client = None
 BUCKET_NAME = "jake-adam-kevin"
 image = modal.Image.debian_slim(python_version="3.11").pip_install_from_requirements("requirements.txt")
 app = modal.App("scrape-data-app", image=image)
+
+
+def get_gcs_client() -> storage.Client:
+    global _gcs_client
+    if _gcs_client:
+        return _gcs_client
+    else:
+        service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
+        credentials = service_account.Credentials.from_service_account_info(service_account_info)
+        client = storage.Client(credentials=credentials)
+        _gcs_client = client
+    return client
 
 
 class Item(BaseModel):
@@ -54,50 +67,36 @@ def sentiment(text: str) -> float:
     """
 
 
-def get_comment_sentiments(post_id: int) -> List[CommentSentiment]:
-    result: List[CommentSentiment] = []
-    for kid in get_detail(post_id).kids:
-        sentiment_score = fn(sentiment)(get_detail(kid).text)
-        result.append(CommentSentiment(comment_id=kid, post_id=post_id, sentiment=sentiment_score))
-    return result
-
-
-def get_top_hackernews_comments_sentiments() -> List[CommentSentiment]:
-    post_ids = get_post_ids()
-    result: List[CommentSentiment] = []
-    for post_id in post_ids:
-        result.extend(get_comment_sentiments(post_id))
-    return result
-
-
-def get_gcs_client() -> storage.Client:
-    service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
-    credentials = service_account.Credentials.from_service_account_info(service_account_info)
-    client = storage.Client(credentials=credentials)
-    return client
-
-
-@app.function(
-    schedule=modal.Period(hours=1),
-    secrets=[
+@app.function(retries=3, concurrency_limit=400, secrets=[
         modal.Secret.from_name("jake-adam-kevin-creds"),
         modal.Secret.from_name("open-api-secret"),
-    ])
-def upload_data():
-    client = get_gcs_client()
-    bucket = client.bucket("jake-adam-kevin")
+])
+def get_and_upload_comment_sentiment(info: dict):
+    comment_id = info["comment_id"]
+    post_id = info["post_id"]
 
-    print("Getting top hackernews comments sentiments")
+    sentiment_score = fn(sentiment)(get_detail(comment_id).text)
+    comment = CommentSentiment(comment_id=comment_id, post_id=post_id, sentiment=sentiment_score)
+    gcs_client = get_gcs_client()
+    data = comment.model_dump_json()
+    file_name = f"{pendulum.now().format('YYYY-MM-DD-HH-mm-ss')}-{comment.comment_id}"
+    bucket = gcs_client.bucket(BUCKET_NAME)
+    blob = bucket.blob(file_name)
+    blob.upload_from_string(data)
+    return file_name
+
+
+@app.function()
+def upload_data():
+    print("Getting hacker news post ids...")
     post_ids = get_post_ids()
+    print(f"Found {len(post_ids)} post ids")
     for post_id in post_ids:
-        comments = get_comment_sentiments(post_id)
-        print(f"Got {len(comments)} comments for post {post_id}")
-        for comment in comments:
-            data = comment.model_dump_json()
-            file_name = f"{pendulum.now().format('YYYY-MM-DD-HH-mm-ss')}-{comment.comment_id}"
-            blob = bucket.blob(file_name)
-            blob.upload_from_string(data)
-            print(f"Uploading {file_name} to GCS")
+        res = get_and_upload_comment_sentiment.map(
+            [{"comment_id": comment_id, "post_id": post_id} for comment_id in get_detail(post_id).kids]
+        )
+        for r in res:
+            print("Uploaded:", r)
 
     print("All done!")
 
