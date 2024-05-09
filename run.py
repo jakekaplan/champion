@@ -107,4 +107,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    modal.runner.deploy_app(app)
